@@ -2,7 +2,7 @@ ifeq ($(ARCH),x86_64)
 GOARCH := amd64
 endif
 
-rootfs-$(ARCH).img:
+rootfs-$(ARCH).img: $(wildcard cmd/*/*.go)
 	GOARCH="$(GOARCH)" go run github.com/u-root/u-root -o "$(@)" \
 				-initcmd pbainit \
 				core \

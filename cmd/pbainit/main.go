@@ -2,16 +2,23 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path"
+	"strconv"
+	"strings"
 	"syscall"
-	"time"
 
+	tcg "github.com/bluecmd/go-tcg-storage/pkg/core"
+	"github.com/bluecmd/go-tcg-storage/pkg/drive"
+	"github.com/bluecmd/go-tcg-storage/pkg/locking"
 	"github.com/u-root/u-root/pkg/libinit"
 	"github.com/u-root/u-root/pkg/mount"
 	"github.com/u-root/u-root/pkg/ulog"
+	"golang.org/x/sys/unix"
 )
 
 const banner = `
@@ -58,10 +65,55 @@ func main() {
 		}
 	}()
 
-	for {
-		fmt.Printf("Hello, I am elx-pba\n")
-		time.Sleep(1 * time.Second)
-		break
+	sysblk, err := ioutil.ReadDir("/sys/class/block/")
+	if err != nil {
+		log.Printf("Failed to enumerate block devices: %v", err)
+		return
+	}
+	for _, fi := range sysblk {
+		devname := fi.Name()
+		if strings.HasPrefix(devname, "loop") {
+			continue
+		}
+		devpath := path.Join("/dev", devname)
+		if _, err := os.Stat(devpath); os.IsNotExist(err) {
+			majmin, err := ioutil.ReadFile(path.Join("/sys/class/block", devname, "dev"))
+			if err != nil {
+				log.Printf("Failed to read major:minor for %s: %v", devname, err)
+				continue
+			}
+			parts := strings.Split(strings.TrimSpace(string(majmin)), ":")
+			major, _ := strconv.ParseInt(parts[0], 10, 8)
+			minor, _ := strconv.ParseInt(parts[1], 10, 8)
+			if err := unix.Mknod(path.Join("/dev", devname), unix.S_IFBLK|0600, int(major<<16|minor)); err != nil {
+				log.Printf("Mknod(%s) failed: %v", devname, err)
+				continue
+			}
+		}
+
+		d, err := drive.Open(devpath)
+		if err != nil {
+			log.Printf("drive.Open(%s): %v", devpath, err)
+			continue
+		}
+		identity, err := d.Identify()
+		if err != nil {
+			log.Printf("drive.Identify(%s): %v", devpath, err)
+		}
+		d0, err := tcg.Discovery0(d)
+		if err != nil {
+			if err != tcg.ErrNotSupported {
+				log.Printf("tcg.Discovery0(%s): %v", devpath, err)
+			}
+			continue
+		}
+		if d0.Locking != nil && d0.Locking.Locked {
+			log.Printf("Drive %s is locked", identity)
+			// TODO: Unlock!
+			_ = locking.LockingSP{}
+		} else {
+			log.Printf("Considered drive %s, but drive is not locked", identity)
+		}
 	}
 }
 
