@@ -72,7 +72,7 @@ func main() {
 	}
 	for _, fi := range sysblk {
 		devname := fi.Name()
-		if strings.HasPrefix(devname, "loop") {
+		if _, err := os.Stat(path.Join("sys/class/block", devname, "device")); os.IsNotExist(err) {
 			continue
 		}
 		devpath := path.Join("/dev", devname)
