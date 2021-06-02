@@ -15,4 +15,7 @@ elx-pba-$(ARCH).img: elx-pba-$(ARCH).fs
 	sgdisk -og "$@"
 	sgdisk -n "1:2048:" -c 1:"EFI System Partition" -t 1:ef00 "$@"
 	dd if="$<" of="$@" seek=2048 bs=512 conv=notrunc
+	# Mark the image in the MBR region which we are not using anyway in EFI mode
+	echo -n "ELX PBA IMAGE   git $(shell git rev-parse --short=12 HEAD)" | \
+		dd if=/dev/stdin of="$@" count=1 bs=448 conv=notrunc
 	sfdisk -l "$@"
