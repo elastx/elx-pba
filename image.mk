@@ -1,13 +1,13 @@
-elx-pba-$(ARCH).fs: $(KERNEL_IMAGE) rootfs-$(ARCH).zst
+ifeq ($(ARCH),x86_64)
+BOOTXEFI := bootx64.efi
+endif
+
+elx-pba-$(ARCH).fs: $(KERNEL_IMAGE)
 	truncate -s 30M "$@"
 	mkfs.vfat -n ELX-PBA "$@"
 	mmd -oi "$@" ::EFI
 	mmd -oi "$@" ::EFI/BOOT
-	mcopy -oi "$@" $< ::EFI/BOOT/linux.krn
-	mcopy -oi "$@" rootfs-$(ARCH).zst ::EFI/BOOT/rootfs.zst
-	mcopy -oi "$@" arch/$(ARCH)/syslinux.cfg ::EFI/BOOT/
-	mcopy -oi "$@" arch/$(ARCH)/ldlinux* ::EFI/BOOT/
-	mcopy -oi "$@" arch/$(ARCH)/boot*.efi ::EFI/BOOT/
+	mcopy -oi "$@" $< ::EFI/BOOT/$(BOOTXEFI)
 	mdir -/i "$@" ::
 
 elx-pba-$(ARCH).img: elx-pba-$(ARCH).fs
