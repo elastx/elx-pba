@@ -22,6 +22,10 @@ include image.mk
 qemu-x86_64: elx-pba-x86_64.img arch/x86_64/ovmf.fd
 	qemu-system-x86_64 \
 		-m 1024 \
+		-uuid 00000000-0000-0000-0000-000000000001 \
+		-smbios type=1,serial=SYSTEM01 \
+		-smbios type=2,serial=BOARD01 \
+		-smbios type=3,serial=CHASSIS01 \
 		-device "virtio-scsi-pci,id=scsi0" \
 		-device "scsi-hd,bus=scsi0.0,drive=hd0" \
 		-drive "id=hd0,if=none,format=raw,readonly=on,file=$<" \

@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -65,6 +65,17 @@ func main() {
 		}
 	}()
 
+	dmi, err := readDMI()
+	if err != nil {
+		log.Printf("Failed to read SMBIOS/DMI data: %v", err)
+		return
+	}
+
+	log.Printf("System UUID:      %s", dmi.SystemUUID)
+	log.Printf("System serial:    %s", dmi.SystemSerialNumber)
+	log.Printf("Baseboard serial: %s", dmi.BaseboardSerialNumber)
+	log.Printf("Chassis serial:   %s", dmi.ChassisSerialNumber)
+
 	sysblk, err := ioutil.ReadDir("/sys/class/block/")
 	if err != nil {
 		log.Printf("Failed to enumerate block devices: %v", err)
@@ -72,12 +83,12 @@ func main() {
 	}
 	for _, fi := range sysblk {
 		devname := fi.Name()
-		if _, err := os.Stat(path.Join("sys/class/block", devname, "device")); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join("sys/class/block", devname, "device")); os.IsNotExist(err) {
 			continue
 		}
-		devpath := path.Join("/dev", devname)
+		devpath := filepath.Join("/dev", devname)
 		if _, err := os.Stat(devpath); os.IsNotExist(err) {
-			majmin, err := ioutil.ReadFile(path.Join("/sys/class/block", devname, "dev"))
+			majmin, err := ioutil.ReadFile(filepath.Join("/sys/class/block", devname, "dev"))
 			if err != nil {
 				log.Printf("Failed to read major:minor for %s: %v", devname, err)
 				continue
@@ -85,7 +96,7 @@ func main() {
 			parts := strings.Split(strings.TrimSpace(string(majmin)), ":")
 			major, _ := strconv.ParseInt(parts[0], 10, 8)
 			minor, _ := strconv.ParseInt(parts[1], 10, 8)
-			if err := unix.Mknod(path.Join("/dev", devname), unix.S_IFBLK|0600, int(major<<16|minor)); err != nil {
+			if err := unix.Mknod(filepath.Join("/dev", devname), unix.S_IFBLK|0600, int(major<<16|minor)); err != nil {
 				log.Printf("Mknod(%s) failed: %v", devname, err)
 				continue
 			}
@@ -107,8 +118,13 @@ func main() {
 			}
 			continue
 		}
-		if d0.Locking != nil && d0.Locking.Locked {
-			log.Printf("Drive %s is locked", identity)
+		if d0.Locking != nil {
+			if d0.Locking.Locked {
+				log.Printf("Drive %s is locked", identity)
+			}
+			if d0.Locking.MBREnabled && !d0.Locking.MBRDone {
+				log.Printf("Drive %s has active shadow MBR", identity)
+			}
 			// TODO: Unlock!
 			_ = locking.LockingSP{}
 		} else {
