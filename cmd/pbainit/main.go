@@ -169,14 +169,14 @@ func main() {
 	abort := make(chan bool)
 	go func() {
 		fmt.Println("")
-		log.Printf("Starting localboot in 5 seconds, press Enter to start shell instead")
+		log.Printf("Starting 'boot' in 5 seconds, press Enter to start shell instead")
 		select {
 		case <-abort:
 			return
 		case <-time.After(5 * time.Second):
 			// pass
 		}
-		Execute("/bbin/localboot", "-grub")
+		Execute("/bbin/boot")
 	}()
 
 	reader.ReadString('\n')
