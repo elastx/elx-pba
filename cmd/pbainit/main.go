@@ -1,23 +1,27 @@
 package main
 
 import (
+	"bufio"
+	"crypto/sha1"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	tcg "github.com/bluecmd/go-tcg-storage/pkg/core"
 	"github.com/bluecmd/go-tcg-storage/pkg/drive"
 	"github.com/bluecmd/go-tcg-storage/pkg/locking"
 	"github.com/u-root/u-root/pkg/libinit"
 	"github.com/u-root/u-root/pkg/mount"
+	"github.com/u-root/u-root/pkg/mount/block"
 	"github.com/u-root/u-root/pkg/ulog"
+	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/sys/unix"
 )
 
@@ -47,6 +51,9 @@ func main() {
 	if _, err := mount.Mount("sysfs", "/sys", "sysfs", "", 0); err != nil {
 		log.Fatalf("Mount(sysfs): %v", err)
 	}
+	if _, err := mount.Mount("efivarfs", "/sys/firmware/efi/efivars", "efivarfs", "", 0); err != nil {
+		log.Fatalf("Mount(efivars): %v", err)
+	}
 
 	log.Printf("Starting system...")
 
@@ -61,7 +68,7 @@ func main() {
 	defer func() {
 		log.Printf("Starting emergency shell...")
 		for {
-			Shell()
+			Execute("/bbin/elvish")
 		}
 	}()
 
@@ -81,6 +88,8 @@ func main() {
 		log.Printf("Failed to enumerate block devices: %v", err)
 		return
 	}
+
+	unlocked := false
 	for _, fi := range sysblk {
 		devname := fi.Name()
 		if _, err := os.Stat(filepath.Join("sys/class/block", devname, "device")); os.IsNotExist(err) {
@@ -107,9 +116,14 @@ func main() {
 			log.Printf("drive.Open(%s): %v", devpath, err)
 			continue
 		}
+		defer d.Close()
 		identity, err := d.Identify()
 		if err != nil {
 			log.Printf("drive.Identify(%s): %v", devpath, err)
+		}
+		dsn, err := d.SerialNumber()
+		if err != nil {
+			log.Printf("drive.SerialNumber(%s): %v", devpath, err)
 		}
 		d0, err := tcg.Discovery0(d)
 		if err != nil {
@@ -125,33 +139,89 @@ func main() {
 			if d0.Locking.MBREnabled && !d0.Locking.MBRDone {
 				log.Printf("Drive %s has active shadow MBR", identity)
 			}
-			// TODO: Unlock!
-			_ = locking.LockingSP{}
+			pass := fmt.Sprintf("%s:%s", dmi.SystemUUID, dmi.ChassisSerialNumber)
+			if err := unlock(d, pass, dsn); err != nil {
+				log.Printf("Failed to unlock %s: %v", identity, err)
+				continue
+			}
+			bd, err := block.Device(devpath)
+			if err != nil {
+				log.Printf("block.Device(%s): %v", devpath, err)
+				continue
+			}
+			if err := bd.ReadPartitionTable(); err != nil {
+				log.Printf("block.ReadPartitionTable(%s): %v", devpath, err)
+				continue
+			}
+			log.Printf("Drive %s has been unlocked", devpath)
+			unlocked = true
 		} else {
 			log.Printf("Considered drive %s, but drive is not locked", identity)
 		}
 	}
+
+	if !unlocked {
+		log.Printf("No drives changed state to unlocked, starting shell for troubleshooting")
+		return
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	abort := make(chan bool)
+	go func() {
+		fmt.Println("")
+		log.Printf("Starting localboot in 5 seconds, press Enter to start shell instead")
+		select {
+		case <-abort:
+			return
+		case <-time.After(5 * time.Second):
+			// pass
+		}
+		Execute("/bbin/localboot", "-grub")
+	}()
+
+	reader.ReadString('\n')
+	abort <- true
 }
 
-func intrHandler(cmd *exec.Cmd, exited chan bool) {
-	for {
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		select {
-		case _ = <-c:
-			cmd.Process.Signal(os.Interrupt)
-		case _ = <-exited:
-			return
+func unlock(d tcg.DriveIntf, pass string, driveserial []byte) error {
+	// Same format as used by sedutil for compatibility
+	salt := fmt.Sprintf("%-20s", string(driveserial))
+	pin := pbkdf2.Key([]byte(pass), []byte(salt[:20]), 75000, 32, sha1.New)
+
+	cs, lmeta, err := locking.Initialize(d)
+	if err != nil {
+		return fmt.Errorf("locking.Initialize: %v", err)
+	}
+	defer cs.Close()
+	l, err := locking.NewSession(cs, lmeta, locking.DefaultAuthority(pin))
+	if err != nil {
+		return fmt.Errorf("locking.NewSession: %v", err)
+	}
+	defer l.Close()
+
+	for i, r := range l.Ranges {
+		if err := r.UnlockRead(); err != nil {
+			log.Printf("Read unlock range %d failed: %v", i, err)
+		}
+		if err := r.UnlockWrite(); err != nil {
+			log.Printf("Write unlock range %d failed: %v", i, err)
 		}
 	}
+
+	if l.MBREnabled && !l.MBRDone {
+		if err := l.SetMBRDone(true); err != nil {
+			return fmt.Errorf("SetMBRDone: %v", err)
+		}
+	}
+	return nil
 }
 
-func Shell() {
+func Execute(name string, args ...string) {
 	environ := append(os.Environ(), "USER=root")
 	environ = append(environ, "HOME=/root")
 	environ = append(environ, "TZ=UTC")
 
-	cmd := exec.Command("/bbin/elvish")
+	cmd := exec.Command(name, args...)
 	cmd.Dir = "/"
 	cmd.Env = environ
 	cmd.Stdin = os.Stdin
@@ -162,11 +232,7 @@ func Shell() {
 	}
 	cmd.SysProcAttr.Setctty = true
 	cmd.SysProcAttr.Setsid = true
-	exited := make(chan bool)
-	// Forward intr to the shell
-	go intrHandler(cmd, exited)
 	if err := cmd.Run(); err != nil {
 		log.Printf("Failed to execute: %v", err)
 	}
-	exited <- true
 }

@@ -9,5 +9,6 @@ rootfs-$(ARCH).cpio: $(wildcard cmd/*/*.go)
 				boot \
 				github.com/u-root/u-root/cmds/exp/dmidecode \
 				github.com/u-root/u-root/cmds/exp/page \
+				github.com/u-root/u-root/cmds/exp/partprobe \
 				github.com/elastx/elx-pba/cmd/pbainit \
 				github.com/bluecmd/go-tcg-storage/cmd/sedlockctl
