@@ -19,7 +19,7 @@ linux-$(LINUX_VERSION)/.config: linux-$(LINUX_VERSION)/.dir arch/$(ARCH)/linux.c
 linux:
 	make -C linux-$(LINUX_VERSION) ARCH="$(ARCH)" all -j $(shell nproc)
 
-$(KERNEL_IMAGE): linux-$(LINUX_VERSION)/.config
+$(KERNEL_IMAGE): linux-$(LINUX_VERSION)/.config rootfs-$(ARCH).cpio
 	make ARCH="$(ARCH)" LINUX_VERSION="$(LINUX_VERSION)" linux
 	touch "$(@)"
 
