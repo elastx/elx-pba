@@ -4,6 +4,9 @@ Pre-boot authentication image for TCG Storage devices
 
 ## Building
 
+**NOTE**: Due to u-root not supporting 1.16 yet, you have to use a Go version
+lower than 1.16 to build - e.g. 1.15.
+
 ```
 $ sudo apt install \
     gnupg2 gpgv2 flex bison build-essential libelf-dev \

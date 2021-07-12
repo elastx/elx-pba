@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"crypto/sha1"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -25,15 +26,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const banner = `
-███████╗██╗      █████╗ ███████╗████████╗██╗  ██╗
-██╔════╝██║     ██╔══██╗██╔════╝╚══██╔══╝╚██╗██╔╝
-█████╗  ██║     ███████║███████╗   ██║    ╚███╔╝
-██╔══╝  ██║     ██╔══██║╚════██║   ██║    ██╔██╗
-███████╗███████╗██║  ██║███████║   ██║   ██╔╝ ██╗
-╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
-`
-
 var (
 	Version = "(devel)"
 	GitHash = "(no hash)"
@@ -41,7 +33,8 @@ var (
 
 func main() {
 	fmt.Printf("\n")
-	fmt.Printf(banner)
+	l, _ := base64.StdEncoding.DecodeString(logo)
+	fmt.Println(string(l))
 	fmt.Printf("Welcome to Elastx PBA version %s (git %s)\n\n", Version, GitHash)
 	log.SetPrefix("elx-pba: ")
 
@@ -139,7 +132,7 @@ func main() {
 			if d0.Locking.MBREnabled && !d0.Locking.MBRDone {
 				log.Printf("Drive %s has active shadow MBR", identity)
 			}
-			pass := fmt.Sprintf("%s:%s", dmi.SystemUUID, dmi.ChassisSerialNumber)
+			pass := fmt.Sprintf("%s", dmi.SystemUUID)
 			if err := unlock(d, pass, dsn); err != nil {
 				log.Printf("Failed to unlock %s: %v", identity, err)
 				continue
