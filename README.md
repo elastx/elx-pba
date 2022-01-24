@@ -6,7 +6,7 @@ Pre-boot authentication image for TCG Storage devices
 
 **NOTE**: Use a Go version of 1.17 or higher.
 
-```
+```shell
 $ sudo apt install \
     gnupg2 gpgv2 flex bison build-essential libelf-dev \
     curl libssl-dev bc zstd dosfstools gdisk mtools
@@ -16,9 +16,16 @@ $ gpg2 --locate-keys torvalds@kernel.org gregkh@kernel.org autosigner@kernel.org
 $ PATH=$PATH:/sbin make
 ```
 
-## Testing
+## Testing in a VM
 
+```shell
+$ sudo apt install qemu-system-x86
+$ make qemu-x86_64
 ```
+
+## Testing on a real disk
+
+```shell
 $ OPAL_KEY=debug
 $ sudo sedutil-cli --loadpbaimage "${OPAL_KEY}" elx-pba-x86_64.img /dev/sdb
 ```
