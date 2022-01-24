@@ -9,12 +9,24 @@ Pre-boot authentication image for TCG Storage devices
 ```shell
 $ sudo apt install \
     gnupg2 gpgv2 flex bison build-essential libelf-dev \
-    curl libssl-dev bc zstd dosfstools gdisk mtools
+    curl libssl-dev bc zstd dosfstools fdisk gdisk mtools
 $ gpg2 --locate-keys torvalds@kernel.org gregkh@kernel.org autosigner@kernel.org
 
 # Make sure sgdisk is in the PATH
 $ PATH=$PATH:/sbin make
 ```
+
+Alternatively, use the containerized build tools:
+
+```shell
+$ docker build \
+	-t elx-pba-builder:latest \
+	-f builder.dockerfile .
+$ docker run \
+	--rm --volume ${PWD}:/src \
+	elx-pba-builder:latest
+```
+
 
 ## Testing in a VM
 
