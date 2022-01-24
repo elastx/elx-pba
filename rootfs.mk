@@ -2,8 +2,10 @@ ifeq ($(ARCH),x86_64)
 GOARCH := amd64
 endif
 
-rootfs-$(ARCH).cpio: $(wildcard cmd/*/*.go)
-	GOARCH="$(GOARCH)" go run github.com/u-root/u-root -o "$(@)" \
+rootfs-$(ARCH).cpio: go/bin/u-root $(wildcard cmd/*/*.go)
+	go/bin/u-root \
+				-o "$(@)" \
+				-build=gbb \
 				-initcmd pbainit \
 				core \
 				boot \
