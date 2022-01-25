@@ -19,6 +19,9 @@ build_pba_image:
   stage: build
   image: $BUILDER_IMAGE
   script:
+    - echo $PWD
+    - echo $CI_BUILDS_DIR
+    - echo $CI_PROJECT_DIR
     - GOPATH=$PWD/go make
     - sha256sum elx-pba-x86_64.img | tee SHA256SUMS
   artifacts:
