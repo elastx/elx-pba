@@ -7,6 +7,8 @@ prepare_environment_and_build:
   services:
     - docker:20.10.12-dind
   script:
+    # Hack since we are using DinD and can't rely on volumes
+    - echo "COPY . /src" >> builder.dockerfile
     - docker build -t elastx.se/elx-pba-builder -f builder.dockerfile .
     - docker run --rm --volume $PWD:/src elastx.se/elx-pba-builder
   artifacts:
