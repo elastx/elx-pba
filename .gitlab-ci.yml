@@ -1,17 +1,28 @@
 stages:
+  - prepare_build_environment
   - build
 
-prepare_environment_and_build:
-  stage: build
+variables:
+  BUILDER_IMAGE: quay.io/elastx/elx-pba-builder:$CI_COMMIT_REF_NAME
+
+build_and_publish_builder_image:
+  stage: prepare_build_environment
   image: docker:stable
   services:
     - docker:20.10.12-dind
   script:
-    # Hack since we are using DinD and can't rely on host path mounts
-    - echo "COPY . /src" >> builder.dockerfile
-    - docker build -t elastx.se/elx-pba-builder -f builder.dockerfile .
-    - docker run --rm elastx.se/elx-pba-builder
+    - docker build -t "$BUILDER_IMAGE" -f builder.dockerfile .
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker push $BUILDER_IMAGE
+
+build_pba_image:
+  stage: build
+  image: $BUILDER_IMAGE
+  script:
+    - GOPATH=$PWD/go make
+    - sha256sum elx-pba-x86_64.img | tee SHA256SUMS
   artifacts:
     paths:
       - elx-pba-x86_64.img
+      - SHA256SUMS
     when: always
