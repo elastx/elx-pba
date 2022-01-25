@@ -17,7 +17,9 @@ build_and_publish_builder_image:
 
 build_pba_image:
   stage: build
-  image: $BUILDER_IMAGE
+  image:
+    name: $BUILDER_IMAGE
+    entrypoint: [""]
   script:
     - echo $PWD
     - echo $CI_BUILDS_DIR
