@@ -169,7 +169,7 @@ func main() {
 		case <-time.After(5 * time.Second):
 			// pass
 		}
-		Execute("/bbin/boot")
+		Execute("/bbin/shutdown", "reboot")
 	}()
 
 	reader.ReadString('\n')
