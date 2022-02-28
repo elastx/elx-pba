@@ -7,6 +7,7 @@ rootfs-$(ARCH).cpio: go/bin/u-root $(wildcard cmd/*/*.go)
 				-o "$(@)" \
 				-build=gbb \
 				-initcmd pbainit \
+				boot \
 				core \
 				github.com/u-root/u-root/cmds/exp/dmidecode \
 				github.com/u-root/u-root/cmds/exp/page \

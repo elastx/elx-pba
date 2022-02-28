@@ -10,6 +10,8 @@ import (
 type DMIData struct {
 	SystemUUID            string
 	SystemSerialNumber    string
+	BaseboardManufacturer string
+	BaseboardProduct      string
 	BaseboardSerialNumber string
 	ChassisSerialNumber   string
 }
@@ -39,6 +41,8 @@ func readDMI() (*DMIData, error) {
 		if ci, ok := pt.(*smbios.ChassisInfo); ok {
 			dmi.ChassisSerialNumber = ci.SerialNumber
 		} else if bi, ok := pt.(*smbios.BaseboardInfo); ok {
+			dmi.BaseboardManufacturer = bi.Manufacturer
+			dmi.BaseboardProduct = bi.Product
 			dmi.BaseboardSerialNumber = bi.SerialNumber
 		} else if si, ok := pt.(*smbios.SystemInfo); ok {
 			dmi.SystemSerialNumber = si.SerialNumber

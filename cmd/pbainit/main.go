@@ -71,10 +71,12 @@ func main() {
 		return
 	}
 
-	log.Printf("System UUID:      %s", dmi.SystemUUID)
-	log.Printf("System serial:    %s", dmi.SystemSerialNumber)
-	log.Printf("Baseboard serial: %s", dmi.BaseboardSerialNumber)
-	log.Printf("Chassis serial:   %s", dmi.ChassisSerialNumber)
+	log.Printf("System UUID:            %s", dmi.SystemUUID)
+	log.Printf("System serial:          %s", dmi.SystemSerialNumber)
+	log.Printf("Baseboard manufacturer: %s", dmi.BaseboardManufacturer)
+	log.Printf("Baseboard product:      %s", dmi.BaseboardProduct)
+	log.Printf("Baseboard serial:       %s", dmi.BaseboardSerialNumber)
+	log.Printf("Chassis serial:         %s", dmi.ChassisSerialNumber)
 
 	sysblk, err := ioutil.ReadDir("/sys/class/block/")
 	if err != nil {
@@ -169,7 +171,15 @@ func main() {
 		case <-time.After(5 * time.Second):
 			// pass
 		}
-		Execute("/bbin/shutdown", "reboot")
+		// Work-around for systems which are known to fail during boot/kexec - these
+		// systems keep the drives in an unlocked state during software triggered reboots,
+		// which means that the "real" kernel and rootfs should be booted afterwards
+		if dmi.BaseboardManufacturer == "Supermicro" && strings.HasPrefix(dmi.BaseboardProduct, "X12") {
+			log.Printf("Work-around: Rebooting system instead of utilizing 'boot'")
+			Execute("/bbin/shutdown", "reboot")
+		} else {
+			Execute("/bbin/boot")
+		}
 	}()
 
 	reader.ReadString('\n')
