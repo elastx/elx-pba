@@ -24,9 +24,7 @@ jobs:
     - name: Push docker imag
       run: docker push $BUILDER_IMAGE
   create-cluster:
-    runs-on:
-      - ubuntu-22.04
-      - self-hosted
+    runs-on: ubuntu-latest
     container:
       image: quay.io/elastx/elx-pba-builder:${{ github.run_id }}-${{ github.run_number }}
       credentials:
