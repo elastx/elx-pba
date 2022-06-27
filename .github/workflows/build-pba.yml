@@ -9,6 +9,7 @@ on:
 env:
   BUILDER_IMAGE: quay.io/elastx/elx-pba-builder:${{ github.run_id }}-${{ github.run_number }}
   REGISTRY_USER: elastx+elxpba_githubci
+  REGISTRY: quay.io
 
 jobs:
 
