@@ -1,0 +1,49 @@
+name: Build PBA
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    
+env:
+  BUILDER_IMAGE: quay.io/elastx/elx-pba-builder:${{ github.run_id }}-${{ github.run_number }}
+  REGISTRY_USER: elastx+elxpba_githubci
+
+jobs:
+
+  docker-image:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build the Docker image
+      run: docker build -t "$BUILDER_IMAGE" -f builder.dockerfile .
+    - name: Docker login 
+      run: docker login -u "$REGISTRY_USER" -p "${{ secrets.DOCKER_PASSWORD }}" $REGISTRY
+    - name: Push docker imag
+      run: docker push $BUILDER_IMAGE
+  create-cluster:
+    runs-on:
+      - ubuntu-22.04
+      - self-hosted
+    container:
+      image: quay.io/elastx/elx-pba-builder:${{ github.run_id }}-${{ github.run_number }}
+      credentials:
+        username: elastx+elxpba_githubci
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    needs:
+      - docker-image
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build PBA
+        run: GOPATH=$PWD/go make
+      - name: Calculate sha256sum
+        run: sha256sum elx-pba-x86_64.img | tee SHA256SUMS
+      - name: Save inventory as artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: pba
+          path: |
+            elx-pba-x86_64.img
+            SHA256SUMS
