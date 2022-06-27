@@ -30,6 +30,7 @@ jobs:
       credentials:
         username: elastx+elxpba_githubci
         password: ${{ secrets.DOCKER_PASSWORD }}
+      options: --workdir /src
     needs:
       - docker-image
     steps:
