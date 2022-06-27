@@ -27,7 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: quay.io/elastx/elx-pba-builder:${{ github.run_id }}-${{ github.run_number }}
-      options: --user 0 -e "HOME=/root"
       credentials:
         username: elastx+elxpba_githubci
         password: ${{ secrets.DOCKER_PASSWORD }}
@@ -35,6 +34,12 @@ jobs:
       - docker-image
     steps:
       - uses: actions/checkout@v3
+      - name: Import know good linux kernel signer keys
+        run: | 
+          RUN gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys \
+          B8868C80BA62A1FFFAF5FDA9632D3A06589DA6B1 \
+          647F28654894E3BD457199BE38DBBDC86092693E \
+          ABAF11C65A2970B130ABE3C479BE3E4300411886
       - name: Build PBA
         run: GOPATH=$PWD/go make
       - name: Calculate sha256sum
