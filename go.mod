@@ -7,4 +7,5 @@ require (
 	github.com/u-root/u-root v0.8.0
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce
 	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9
+	golang.org/x/term v0.0.0-20210317153231-de623e64d2a6 // indirect
 )

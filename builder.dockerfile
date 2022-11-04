@@ -3,7 +3,7 @@ FROM docker.io/library/golang:1.17.6-bullseye
 RUN apt-get update && \
 	apt-get install --no-install-recommends --yes \
 	gnupg2 gpgv2 flex bison build-essential libelf-dev curl \
-	libssl-dev bc zstd dosfstools fdisk gdisk mtools && \
+	libssl-dev bc zstd dosfstools fdisk gdisk mtools kbd console-data && \
 	apt-get clean && \
 	apt-get autoremove && \
 	rm --force --recursive /tmp/* /var/lib/apt/lists/* /var/tmp/*
@@ -18,4 +18,4 @@ RUN gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys \
 ENV GOPATH=/src/go
 WORKDIR /src
 
-ENTRYPOINT /usr/bin/make
+ENTRYPOINT ["/usr/bin/make"]
