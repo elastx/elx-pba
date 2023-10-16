@@ -1,5 +1,5 @@
 ARCH ?= $(shell uname -m)
-LINUX_VERSION ?= 5.13.1
+LINUX_VERSION ?= 5.15.135
 
 ifeq ($(shell uname),Linux)
 ACCEL ?= kvm

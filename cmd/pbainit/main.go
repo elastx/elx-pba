@@ -177,6 +177,9 @@ func main() {
 		if dmi.BaseboardManufacturer == "Supermicro" && strings.HasPrefix(dmi.BaseboardProduct, "X12") {
 			log.Printf("Work-around: Rebooting system instead of utilizing 'boot'")
 			Execute("/bbin/shutdown", "reboot")
+		} else if dmi.BaseboardManufacturer == "Supermicro" && strings.HasPrefix(dmi.BaseboardProduct, "X13") {
+			log.Printf("Work-around: Rebooting system instead of utilizing 'boot'")
+			Execute("/bbin/shutdown", "reboot")
 		} else {
 			Execute("/bbin/boot")
 		}
