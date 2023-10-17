@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	tcg "github.com/bluecmd/go-tcg-storage/pkg/core"
-	"github.com/bluecmd/go-tcg-storage/pkg/drive"
-	"github.com/bluecmd/go-tcg-storage/pkg/locking"
+	tcg "github.com/open-source-firmware/go-tcg-storage/pkg/core"
+	"github.com/open-source-firmware/go-tcg-storage/pkg/drive"
+	"github.com/open-source-firmware/go-tcg-storage/pkg/locking"
 	"github.com/u-root/u-root/pkg/libinit"
 	"github.com/u-root/u-root/pkg/mount"
 	"github.com/u-root/u-root/pkg/mount/block"
