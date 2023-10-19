@@ -3,7 +3,7 @@ GOARCH := amd64
 endif
 
 rootfs-$(ARCH).cpio: go/bin/u-root $(wildcard cmd/*/*.go) 
-	UROOT_PATH=/src/go/src/github.com/u-root/u-root GBB_PATH=/src:/src/go/src/github.com/u-root/u-root go/bin/u-root \
+	UROOT_PATH=$(PWD)/go/src/github.com/u-root/u-root GBB_PATH=$(PWD):$(PWD)/go/src/github.com/u-root/u-root go/bin/u-root \
 				-o "$(@)" \
 				-build=gbb \
 				-initcmd pbainit \
