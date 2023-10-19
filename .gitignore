@@ -6,3 +6,4 @@ linux-*/
 rootfs-*
 **/.bb/
 go/
+SHA256SUMS
