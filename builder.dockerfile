@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.17.6-bullseye
+FROM docker.io/library/golang:1.19.13-bullseye
 
 RUN apt-get update && \
 	apt-get install --no-install-recommends --yes \

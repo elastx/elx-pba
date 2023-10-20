@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	tcg "github.com/bluecmd/go-tcg-storage/pkg/core"
-	"github.com/bluecmd/go-tcg-storage/pkg/drive"
-	"github.com/bluecmd/go-tcg-storage/pkg/locking"
+	tcg "github.com/open-source-firmware/go-tcg-storage/pkg/core"
+	"github.com/open-source-firmware/go-tcg-storage/pkg/drive"
+	"github.com/open-source-firmware/go-tcg-storage/pkg/locking"
 	"github.com/u-root/u-root/pkg/libinit"
 	"github.com/u-root/u-root/pkg/mount"
 	"github.com/u-root/u-root/pkg/mount/block"
@@ -162,6 +162,8 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	abort := make(chan bool)
+	var reboot_bug bool
+	var pci_block bool
 	go func() {
 		fmt.Println("")
 		log.Printf("Starting 'boot' in 5 seconds, press Enter to start shell instead")
@@ -171,15 +173,31 @@ func main() {
 		case <-time.After(5 * time.Second):
 			// pass
 		}
+
 		// Work-around for systems which are known to fail during boot/kexec - these
 		// systems keep the drives in an unlocked state during software triggered reboots,
 		// which means that the "real" kernel and rootfs should be booted afterwards
-		if dmi.BaseboardManufacturer == "Supermicro" && strings.HasPrefix(dmi.BaseboardProduct, "X12") {
+		if dmi.BaseboardManufacturer == "Supermicro" {
+			if strings.HasPrefix(dmi.BaseboardProduct, "X12DPT-B6") {
+				reboot_bug = true
+			}
+			//if strings.HasPrefix(dmi.BaseboardProduct, "X13SET-G") {
+			//	reboot_bug = true
+			//}
+			if strings.HasPrefix(dmi.BaseboardProduct, "X10SDV-7TP4F") || strings.HasPrefix(dmi.BaseboardProduct, "X11SDV-8C-TP8F") || strings.HasPrefix(dmi.BaseboardProduct, "X12DPD-A6M25") {
+				pci_block = true
+			}
+		}
+
+		if reboot_bug {
 			log.Printf("Work-around: Rebooting system instead of utilizing 'boot'")
 			Execute("/bbin/shutdown", "reboot")
-		} else if dmi.BaseboardManufacturer == "Supermicro" && strings.HasPrefix(dmi.BaseboardProduct, "X13") {
-			log.Printf("Work-around: Rebooting system instead of utilizing 'boot'")
-			Execute("/bbin/shutdown", "reboot")
+		} else if pci_block {
+			// Boot with PCI block list, the object storage nodes with OpenCAS gets
+			// corrupted filsystems if they are mounted and altered during boot
+			// Right now 0064, 00c9 and 00c4 is LSI cards with lspci -nn
+			log.Printf("Work-around: Swift node, do not mount data disks when searching for kernel!")
+			Execute("/bbin/boot -block='0x1000:0x0064,0x1000:0x00c9,0x1000:0x00c4'")
 		} else {
 			Execute("/bbin/boot")
 		}
