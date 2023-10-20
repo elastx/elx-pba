@@ -43,8 +43,6 @@ jobs:
           ABAF11C65A2970B130ABE3C479BE3E4300411886
       - name: Build PBA
         run: GOPATH=$PWD/go make
-      - name: Calculate sha256sum
-        run: sha256sum elx-pba-x86_64.img | tee SHA256SUMS
       - name: Save inventory as artifact
         uses: actions/upload-artifact@v3
         if: always()
@@ -52,4 +50,5 @@ jobs:
           name: pba
           path: |
             elx-pba-x86_64.img
+            elx-pba-interactive-x86_64.img
             SHA256SUMS
