@@ -178,9 +178,9 @@ func main() {
 		// systems keep the drives in an unlocked state during software triggered reboots,
 		// which means that the "real" kernel and rootfs should be booted afterwards
 		if dmi.BaseboardManufacturer == "Supermicro" {
-			if strings.HasPrefix(dmi.BaseboardProduct, "X12DPT-B6") {
-				reboot_bug = true
-			}
+			//if strings.HasPrefix(dmi.BaseboardProduct, "X12DPT-B6") {
+			//	reboot_bug = true
+			//}
 			//if strings.HasPrefix(dmi.BaseboardProduct, "X13SET-G") {
 			//	reboot_bug = true
 			//}
@@ -197,7 +197,7 @@ func main() {
 			// corrupted filsystems if they are mounted and altered during boot
 			// Right now 0064, 00c9 and 00c4 is LSI cards with lspci -nn
 			log.Printf("Work-around: Swift node, do not mount data disks when searching for kernel!")
-			Execute("/bbin/boot -block='0x1000:0x0064,0x1000:0x00c9,0x1000:0x00c4'")
+			Execute("/bbin/boot", "-block=0x1000:0x0064,0x1000:0x00c9,0x1000:0x00c4")
 		} else {
 			Execute("/bbin/boot")
 		}
