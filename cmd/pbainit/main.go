@@ -2,28 +2,24 @@ package main
 
 import (
 	"bufio"
-	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	tcg "github.com/open-source-firmware/go-tcg-storage/pkg/core"
 	"github.com/open-source-firmware/go-tcg-storage/pkg/drive"
-	"github.com/open-source-firmware/go-tcg-storage/pkg/locking"
 	"github.com/u-root/u-root/pkg/libinit"
 	"github.com/u-root/u-root/pkg/mount"
 	"github.com/u-root/u-root/pkg/mount/block"
 	"github.com/u-root/u-root/pkg/ulog"
-	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/sys/unix"
+
+	"github.com/elastx/elx-pba/internal/pba"
 )
 
 var (
@@ -61,7 +57,7 @@ func main() {
 	defer func() {
 		log.Printf("Starting emergency shell...")
 		for {
-			Execute("/bbin/elvish")
+			pba.Execute("/bbin/elvish")
 		}
 	}()
 
@@ -78,7 +74,7 @@ func main() {
 	log.Printf("Baseboard serial:       %s", dmi.BaseboardSerialNumber)
 	log.Printf("Chassis serial:         %s", dmi.ChassisSerialNumber)
 
-	sysblk, err := ioutil.ReadDir("/sys/class/block/")
+	sysblk, err := os.ReadDir("/sys/class/block/")
 	if err != nil {
 		log.Printf("Failed to enumerate block devices: %v", err)
 		return
@@ -92,14 +88,22 @@ func main() {
 		}
 		devpath := filepath.Join("/dev", devname)
 		if _, err := os.Stat(devpath); os.IsNotExist(err) {
-			majmin, err := ioutil.ReadFile(filepath.Join("/sys/class/block", devname, "dev"))
+			majmin, err := os.ReadFile(filepath.Join("/sys/class/block", devname, "dev"))
 			if err != nil {
 				log.Printf("Failed to read major:minor for %s: %v", devname, err)
 				continue
 			}
 			parts := strings.Split(strings.TrimSpace(string(majmin)), ":")
-			major, _ := strconv.ParseInt(parts[0], 10, 8)
-			minor, _ := strconv.ParseInt(parts[1], 10, 8)
+			if len(parts) != 2 {
+				log.Printf("Unexpected major:minor format for %s: %q", devname, string(majmin))
+				continue
+			}
+			major, errMaj := strconv.ParseInt(parts[0], 10, 32)
+			minor, errMin := strconv.ParseInt(parts[1], 10, 32)
+			if errMaj != nil || errMin != nil {
+				log.Printf("Failed to parse major:minor for %s: %v %v", devname, errMaj, errMin)
+				continue
+			}
 			if err := unix.Mknod(filepath.Join("/dev", devname), unix.S_IFBLK|0600, int(major<<16|minor)); err != nil {
 				log.Printf("Mknod(%s) failed: %v", devname, err)
 				continue
@@ -111,7 +115,6 @@ func main() {
 			log.Printf("drive.Open(%s): %v", devpath, err)
 			continue
 		}
-		defer d.Close()
 		identity, err := d.Identify()
 		if err != nil {
 			log.Printf("drive.Identify(%s): %v", devpath, err)
@@ -122,6 +125,7 @@ func main() {
 		}
 		d0, err := tcg.Discovery0(d)
 		if err != nil {
+			d.Close()
 			if err != tcg.ErrNotSupported {
 				log.Printf("tcg.Discovery0(%s): %v", devpath, err)
 			}
@@ -135,17 +139,20 @@ func main() {
 				log.Printf("Drive %s has active shadow MBR", identity)
 			}
 			pass := fmt.Sprintf("%s", dmi.SystemUUID)
-			if err := unlock(d, pass, dsn); err != nil {
+			if err := pba.Unlock(d, pass, dsn); err != nil {
 				log.Printf("Failed to unlock %s: %v", identity, err)
+				d.Close()
 				continue
 			}
 			bd, err := block.Device(devpath)
 			if err != nil {
 				log.Printf("block.Device(%s): %v", devpath, err)
+				d.Close()
 				continue
 			}
 			if err := bd.ReadPartitionTable(); err != nil {
 				log.Printf("block.ReadPartitionTable(%s): %v", devpath, err)
+				d.Close()
 				continue
 			}
 			log.Printf("Drive %s has been unlocked", devpath)
@@ -153,6 +160,7 @@ func main() {
 		} else {
 			log.Printf("Considered drive %s, but drive is not locked", identity)
 		}
+		d.Close()
 	}
 
 	if !unlocked {
@@ -162,8 +170,7 @@ func main() {
 
 	reader := bufio.NewReader(os.Stdin)
 	abort := make(chan bool)
-	var reboot_bug bool
-	var pci_block bool
+	var pciBlock bool
 	go func() {
 		fmt.Println("")
 		log.Printf("Starting 'boot' in 5 seconds, press Enter to start shell instead")
@@ -171,92 +178,21 @@ func main() {
 		case <-abort:
 			return
 		case <-time.After(5 * time.Second):
-			// pass
 		}
-
-		// Work-around for systems which are known to fail during boot/kexec - these
-		// systems keep the drives in an unlocked state during software triggered reboots,
-		// which means that the "real" kernel and rootfs should be booted afterwards
 		if dmi.BaseboardManufacturer == "Supermicro" {
-			//if strings.HasPrefix(dmi.BaseboardProduct, "X12DPT-B6") {
-			//	reboot_bug = true
-			//}
-			//if strings.HasPrefix(dmi.BaseboardProduct, "X13SET-G") {
-			//	reboot_bug = true
-			//}
 			if strings.HasPrefix(dmi.BaseboardProduct, "X10SDV-7TP4F") || strings.HasPrefix(dmi.BaseboardProduct, "X11SDV-8C-TP8F") || strings.HasPrefix(dmi.BaseboardProduct, "X12DPD-A6M25") {
-				pci_block = true
+				pciBlock = true
 			}
 		}
-
-		if reboot_bug {
-			log.Printf("Work-around: Rebooting system instead of utilizing 'boot'")
-			Execute("/bbin/shutdown", "reboot")
-		} else if pci_block {
-			// Boot with PCI block list, the object storage nodes with OpenCAS gets
-			// corrupted filsystems if they are mounted and altered during boot
-			// Right now 0064, 00c9 and 00c4 is LSI cards with lspci -nn
+		if pciBlock {
+			// object storage nodes with OpenCAS get corrupted filesystems if LSI cards are mounted during boot (0064, 00c9, 00c4 are LSI, per lspci -nn)
 			log.Printf("Work-around: Swift node, do not mount data disks when searching for kernel!")
-			Execute("/bbin/boot", "-block=0x1000:0x0064,0x1000:0x00c9,0x1000:0x00c4")
+			pba.Execute("/bbin/boot", "-block=0x1000:0x0064,0x1000:0x00c9,0x1000:0x00c4")
 		} else {
-			Execute("/bbin/boot")
+			pba.Execute("/bbin/boot")
 		}
 	}()
 
 	reader.ReadString('\n')
 	abort <- true
-}
-
-func unlock(d tcg.DriveIntf, pass string, driveserial []byte) error {
-	// Same format as used by sedutil for compatibility
-	salt := fmt.Sprintf("%-20s", string(driveserial))
-	pin := pbkdf2.Key([]byte(pass), []byte(salt[:20]), 75000, 32, sha1.New)
-
-	cs, lmeta, err := locking.Initialize(d)
-	if err != nil {
-		return fmt.Errorf("locking.Initialize: %v", err)
-	}
-	defer cs.Close()
-	l, err := locking.NewSession(cs, lmeta, locking.DefaultAuthority(pin))
-	if err != nil {
-		return fmt.Errorf("locking.NewSession: %v", err)
-	}
-	defer l.Close()
-
-	for i, r := range l.Ranges {
-		if err := r.UnlockRead(); err != nil {
-			log.Printf("Read unlock range %d failed: %v", i, err)
-		}
-		if err := r.UnlockWrite(); err != nil {
-			log.Printf("Write unlock range %d failed: %v", i, err)
-		}
-	}
-
-	if l.MBREnabled && !l.MBRDone {
-		if err := l.SetMBRDone(true); err != nil {
-			return fmt.Errorf("SetMBRDone: %v", err)
-		}
-	}
-	return nil
-}
-
-func Execute(name string, args ...string) {
-	environ := append(os.Environ(), "USER=root")
-	environ = append(environ, "HOME=/root")
-	environ = append(environ, "TZ=UTC")
-
-	cmd := exec.Command(name, args...)
-	cmd.Dir = "/"
-	cmd.Env = environ
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	if cmd.SysProcAttr == nil {
-		cmd.SysProcAttr = &syscall.SysProcAttr{}
-	}
-	cmd.SysProcAttr.Setctty = true
-	cmd.SysProcAttr.Setsid = true
-	if err := cmd.Run(); err != nil {
-		log.Printf("Failed to execute: %v", err)
-	}
 }
