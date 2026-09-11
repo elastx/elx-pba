@@ -14,6 +14,7 @@ env:
 jobs:
 
   docker-image:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -24,6 +25,7 @@ jobs:
     - name: Push docker imag
       run: docker push $BUILDER_IMAGE
   create-cluster:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     container:
       image: quay.io/elastx/elx-pba-builder:${{ github.run_id }}-${{ github.run_number }}
